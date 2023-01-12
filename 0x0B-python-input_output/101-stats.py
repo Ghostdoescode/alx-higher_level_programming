@@ -2,41 +2,48 @@
 """Reads from standard input and computes metrics
 """
 
-import sys
-import signal
+def print_stats(size, status_codes):
+    """Print accumulated metrics
+    """
+    print("File size: {}".format(size))
+    for key in sorted(status_codes):
+        print("{}: {}".format(key, status_codes[key]))
 
-total_size = 0
-status_codes = {}
-line_count = 0
 
-def handle_interrupt(signal, frame):
-    print_stats()
-    sys.exit(0)
+if __name__ == "__main__":
+    import sys
 
-signal.signal(signal.SIGINT, handle_interrupt)
-
-def print_stats():
-    global total_size, status_codes, line_count
-    print("Total file size: ", total_size)
-    for code in sorted(status_codes.keys()):
-        print(f"{code}: {status_codes[code]}")
-    print("Line count: ",line_count)
-    total_size = 0
+    size = 0
     status_codes = {}
-    line_count = 0
+    valid_codes = ['200', '301', '400', '401', '403', '404', '405', '500']
+    count = 0
 
-for line in sys.stdin:
-    fields = line.strip().split(" ")
-    if len(fields) != 6:
-        continue
+    try:
+        for line in sys.stdin:
+            if count == 10:
+                print_stats(size, status_codes)
+                count = 1
+            else:
+                count += 1
 
-    ip, date, request, status_code, status_text, size = fields
-    total_size += int(size)
-    line_count +=1
-    if status_code in status_codes:
-        status_codes[status_code] += 1
-    else:
-        status_codes[status_code] = 1
+            line = line.split()
 
-    if line_count % 10 == 0:
-        print_stats()
+            try:
+                size += int(line[-1])
+            except (IndexError, ValueError):
+                pass
+
+            try:
+                if line[-2] in valid_codes:
+                    if status_codes.get(line[-2], -1) == -1:
+                        status_codes[line[-2]] = 1
+                    else:
+                        status_codes[line[-2]] += 1
+            except IndexError:
+                pass
+
+        print_stats(size, status_codes)
+
+    except KeyboardInterrupt:
+        print_stats(size, status_codes)
+        raise
